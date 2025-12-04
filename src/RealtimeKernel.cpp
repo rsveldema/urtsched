@@ -28,7 +28,7 @@ void BaseTask::run()
         const auto micros =
             std::chrono::duration_cast<std::chrono::microseconds>(took);
 
-        LOG_ERROR(get_logger(), "task[{}] took too long: %g millis",
+        LOG_ERROR(get_logger(), "task[{}] took too long: {} millis",
             m_name.c_str(), (micros.count() / 1000.0));
         took = took /
             20; // lie a bit to make sure this task can be scheduled at all.
