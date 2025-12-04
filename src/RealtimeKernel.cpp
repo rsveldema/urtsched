@@ -156,8 +156,7 @@ void RealtimeKernel::step()
             }
             else
             {
-                fprintf(
-                    stderr, "idle task is disabled: {}\n", t->get_name().c_str());
+                LOG_INFO(get_logger(), "idle task is disabled: {}", t->get_name());
             }
         }
     }

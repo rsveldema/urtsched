@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include <iuring/Error.hpp>
+#include <slogger/Error.hpp>
 
 namespace service
 {
@@ -12,9 +12,9 @@ namespace service
         virtual std::string get_service_status_as_json() const { return ""; }
 
         [[nodiscard]]
-        virtual iuring::Error init() = 0;
+        virtual error::Error init() = 0;
 
         [[nodiscard]]
-        virtual iuring::Error finish() = 0;
+        virtual error::Error finish() = 0;
     };
 }

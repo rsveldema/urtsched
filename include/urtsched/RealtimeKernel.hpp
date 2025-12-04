@@ -149,14 +149,14 @@ public:
     {
     }
 
-    [[nodiscard]] iuring::Error init() override
+    [[nodiscard]] error::Error init() override
     {
-        return iuring::Error::OK;
+        return error::Error::OK;
     }
 
-    [[nodiscard]] iuring::Error finish() override
+    [[nodiscard]] error::Error finish() override
     {
-        return iuring::Error::OK;
+        return error::Error::OK;
     }
 
     [[nodiscard]] std::shared_ptr<PeriodicTask> add_periodic(
