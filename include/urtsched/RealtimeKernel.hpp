@@ -6,7 +6,7 @@
 #include <chrono>
 #include <functional>
 
-#include <slogger/Logger.hpp>
+#include <slogger/ILogger.hpp>
 #include <slogger/TimeUtils.hpp>
 
 #include <urtsched/IService.hpp>
