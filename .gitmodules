@@ -1,0 +1,3 @@
+[submodule "simple-logger"]
+	path = simple-logger
+	url = https://github.com/rsveldema/simple-logger.git
