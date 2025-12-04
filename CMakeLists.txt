@@ -6,7 +6,9 @@ include(CTest)
 
 enable_testing()
 
-add_subdirectory(simple-logger)
+if (NOT TARGET slogger)
+    add_subdirectory(simple-logger)
+endif()
 
 # Include directories
 set(PUBLIC_INCLUDE_DIRECTORIES include/)
