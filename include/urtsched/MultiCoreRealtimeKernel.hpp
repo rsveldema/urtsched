@@ -31,6 +31,8 @@ public:
 private:
     service::ServiceBus& m_bus;
     logging::ILogger& m_logger;
+
+    // one per core:
     std::vector<std::shared_ptr<RealtimeKernel>> m_kernels;
 
     void reserve_cores();

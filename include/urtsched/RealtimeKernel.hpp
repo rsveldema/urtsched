@@ -11,141 +11,12 @@
 
 #include <urtsched/IService.hpp>
 
+#include "BaseTask.hpp"
+#include "IdleTask.hpp"
+#include "PeriodicTask.hpp"
+
 namespace realtime
 {
-class RealtimeKernel;
-
-using task_func_t = std::function<void()>;
-
-enum class TaskType
-{
-    HARD_REALTIME,
-    SOFT_REALTIME
-};
-
-class BaseTask
-{
-public:
-    BaseTask(TaskType tt, const std::string& name, const std::chrono::microseconds& t,
-        task_func_t callback, logging::ILogger& logger)
-        : m_task_type(tt)
-        , m_interval(t)
-        , m_task_func(callback)
-        , m_timeout(std::chrono::microseconds(0))
-        , m_name(name)
-        , m_logger(logger)
-    {
-    }
-
-    TaskType get_task_type() const { return m_task_type; }
-
-    logging::ILogger& get_logger()
-    {
-        return m_logger;
-    }
-
-    std::string get_service_status_as_json() const;
-
-    const std::string& get_name() const
-    {
-        return m_name;
-    }
-
-    void run();
-
-    void run_elapsed()
-    {
-        assert(m_timeout.elapsed());
-
-        m_timeout = time_utils::Timeout(m_interval);
-
-        run();
-    }
-
-    bool have_time_left_before_deadline() const
-    {
-        return !m_timeout.elapsed();
-    }
-
-    std::chrono::nanoseconds time_left_until_deadline() const
-    {
-        assert(this != nullptr);
-        return m_timeout.time_left();
-    }
-
-    std::chrono::nanoseconds max_time_taken() const
-    {
-        return m_max_time_taken;
-    }
-
-    std::chrono::nanoseconds warmup_max_time_taken() const
-    {
-        return m_warmup_max_time_taken;
-    }
-
-    std::chrono::microseconds average_time_taken() const
-    {
-        return std::chrono::microseconds(
-            (int64_t) ((double) m_total_time_taken.count() / m_num_calls));
-    }
-
-    void set_period(const std::chrono::microseconds& t)
-    {
-        m_interval = t;
-    }
-
-    void enable()
-    {
-        m_enabled = true;
-    }
-
-    void disable()
-    {
-        m_enabled = false;
-    }
-
-    bool is_enabled() const
-    {
-        return m_enabled;
-    }
-
-private:
-    TaskType m_task_type;
-    std::chrono::microseconds m_interval = std::chrono::microseconds(0);
-    std::chrono::nanoseconds m_max_time_taken = std::chrono::nanoseconds(0);
-    std::chrono::microseconds m_total_time_taken = std::chrono::microseconds(0);
-    std::chrono::nanoseconds m_warmup_max_time_taken =
-        std::chrono::nanoseconds(0);
-
-    uint64_t m_num_calls = 0;
-    task_func_t m_task_func;
-    time_utils::Timeout m_timeout;
-    bool m_enabled = false;
-    std::string m_name;
-    logging::ILogger& m_logger;
-};
-
-class IdleTask : public BaseTask
-{
-public:
-    IdleTask(const std::string& name, const std::chrono::microseconds& t,
-        task_func_t callback, logging::ILogger& logger)
-        : BaseTask(TaskType::SOFT_REALTIME, name, t, callback, logger)
-    {
-    }
-};
-
-class PeriodicTask : public BaseTask
-{
-public:
-    PeriodicTask(TaskType tt, const std::string& name, const std::chrono::microseconds& t,
-        task_func_t callback, logging::ILogger& logger)
-        : BaseTask(tt, name, t, callback, logger)
-    {
-    }
-};
-
-
 /** schedules stuff on a single core.
  * As its for a single core only, it does not need
  * locks/synchronization code and is therefore really fast.
@@ -205,7 +76,18 @@ private:
     std::vector<std::shared_ptr<PeriodicTask>> m_periodic_list;
     std::vector<std::shared_ptr<IdleTask>> m_idle_list;
 
-    std::shared_ptr<PeriodicTask> get_next_periodic();
+    std::vector<std::shared_ptr<PeriodicTask>> get_next_periodics();
+
+    // return the task thats earliest:
+    std::shared_ptr<PeriodicTask> get_earliest_next_periodic();
+
+    /**return a list of tasks whose runtime can overlap 'next'.
+    * the returned list contains 'next' as well.
+    */
+    std::vector<std::shared_ptr<PeriodicTask>> get_periodics_that_can_overlap(const std::shared_ptr<PeriodicTask>& next);
+
+    /** return a sorted list of real-time tasks */
+    std::vector<std::shared_ptr<PeriodicTask>> get_sorted_realtime_tasks(const std::vector<std::shared_ptr<PeriodicTask>>& next_up);
 
     void run_idle_tasks();
 };

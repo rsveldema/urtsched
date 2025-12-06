@@ -1,8 +1,8 @@
 #include <urtsched/RealtimeKernel.hpp>
 
 #include <slogger/ILogger.hpp>
-#include <slogger/TimeUtils.hpp>
 #include <slogger/StringUtils.hpp>
+#include <slogger/TimeUtils.hpp>
 
 #include <algorithm>
 #include <cstdio>
@@ -11,6 +11,9 @@
 using namespace std::chrono_literals;
 
 static constexpr auto WARMUP_COUNT = 5;
+
+static constexpr auto MAX_ALLOWED_TASK_TIME = 500us;
+
 
 namespace realtime
 {
@@ -23,7 +26,7 @@ void BaseTask::run()
     assert(end >= start); // overflow?
     auto took = end - start;
 
-    if (took > 1ms)
+    if (took > MAX_ALLOWED_TASK_TIME)
     {
         const auto micros =
             std::chrono::duration_cast<std::chrono::microseconds>(took);
@@ -37,6 +40,7 @@ void BaseTask::run()
     m_total_time_taken +=
         std::chrono::duration_cast<std::chrono::microseconds>(took);
 
+
     if (m_num_calls < WARMUP_COUNT)
     {
         if (took > m_warmup_max_time_taken)
@@ -46,6 +50,12 @@ void BaseTask::run()
     }
     else
     {
+        if (took > MAX_ALLOWED_TASK_TIME)
+        {
+            // lets not count towards our normal statistics.
+            return;
+        }
+
         if (took > m_max_time_taken)
         {
             m_max_time_taken = took;
@@ -54,12 +64,12 @@ void BaseTask::run()
 }
 
 
-[[nodiscard]] std::shared_ptr<PeriodicTask> RealtimeKernel::add_periodic(TaskType tt,
-    const std::string& name, const std::chrono::microseconds& interval,
-    const task_func_t& callback)
+[[nodiscard]] std::shared_ptr<PeriodicTask> RealtimeKernel::add_periodic(
+    TaskType tt, const std::string& name,
+    const std::chrono::microseconds& interval, const task_func_t& callback)
 {
-    auto s = std::make_shared<PeriodicTask>(tt,
-        "periodic-" + name, interval, callback, m_logger);
+    auto s = std::make_shared<PeriodicTask>(
+        tt, "periodic-" + name, interval, callback, m_logger);
     m_periodic_list.emplace_back(s);
     s->disable();
     return s;
@@ -103,17 +113,16 @@ void RealtimeKernel::run_idle_tasks()
 }
 
 
-std::shared_ptr<PeriodicTask> RealtimeKernel::get_next_periodic()
+std::shared_ptr<PeriodicTask> RealtimeKernel::get_earliest_next_periodic()
 {
     std::shared_ptr<PeriodicTask> next;
-    assert(next == nullptr);
 
     for (auto& t : m_periodic_list)
     {
         if (!t->is_enabled())
         {
-            //fprintf(stderr, "discarding: {} = disabled\n",
-            //    t->get_name().c_str());
+            // LOG_INFO(get_logger() "discarding: {} = disabled\n",
+            //     t->get_name());
             continue;
         }
 
@@ -132,36 +141,150 @@ std::shared_ptr<PeriodicTask> RealtimeKernel::get_next_periodic()
     return next;
 }
 
+bool PeriodicTask::overlaps_with(const PeriodicTask& other) const
+{
+    const auto t = other.time_left_until_deadline();
+    const auto my_start = time_left_until_deadline();
+    const auto my_end = my_start + max_time_taken();
+    return t >= my_start and t <= my_end;
+}
+
+
+std::vector<std::shared_ptr<PeriodicTask>>
+RealtimeKernel::get_periodics_that_can_overlap(
+    const std::shared_ptr<PeriodicTask>& next)
+{
+    std::vector<std::shared_ptr<PeriodicTask>> ret;
+
+    for (auto& t : m_periodic_list)
+    {
+        if (!t->is_enabled())
+        {
+            // LOG_INFO(get_logger() "discarding: {} = disabled\n",
+            //     t->get_name());
+            continue;
+        }
+
+        if (t == next)
+        {
+            ret.push_back(t);
+            continue;
+        }
+
+        if (t->overlaps_with(*next) || next->overlaps_with(*t))
+        {
+            ret.push_back(t);
+        }
+    }
+
+
+    return ret;
+}
+
+
+std::vector<std::shared_ptr<PeriodicTask>> RealtimeKernel::get_next_periodics()
+{
+    auto next = get_earliest_next_periodic();
+    if (next == nullptr)
+    {
+        return {};
+    }
+
+    return get_periodics_that_can_overlap(next);
+}
+
+
+std::vector<std::shared_ptr<PeriodicTask>>
+RealtimeKernel::get_sorted_realtime_tasks(
+    const std::vector<std::shared_ptr<PeriodicTask>>& next_up)
+{
+    std::vector<std::shared_ptr<PeriodicTask>> ret;
+    for (const auto& it : next_up)
+    {
+        if (it->get_task_type() == TaskType::HARD_REALTIME)
+        {
+            ret.push_back(it);
+        }
+    }
+
+    std::sort(ret.begin(), ret.end(), [](const std::shared_ptr<PeriodicTask>& t1,
+        const std::shared_ptr<PeriodicTask>& t2) {
+            return t1->time_left_until_deadline() < t2->time_left_until_deadline();
+        }
+    );
+    return ret;
+}
+
 
 void RealtimeKernel::step()
 {
-    auto next_up = get_next_periodic();
-    if (next_up == nullptr)
+    auto next_up = get_next_periodics();
+    if (next_up.empty())
     {
         run_idle_tasks();
         return;
     }
-    assert(next_up != nullptr);
 
-    while (next_up->have_time_left_before_deadline())
+    bool ran_some_idle_tasks = false;
+
+    while (next_up[0]->have_time_left_before_deadline())
     {
         for (auto& t : m_idle_list)
         {
             if (t->is_enabled())
             {
-                if (next_up->time_left_until_deadline() > t->max_time_taken())
+                if (next_up[0]->time_left_until_deadline() >
+                    t->max_time_taken())
                 {
+                    ran_some_idle_tasks = true;
                     t->run();
                 }
             }
             else
             {
-                LOG_INFO(get_logger(), "idle task is disabled: {}", t->get_name());
+                LOG_INFO(
+                    get_logger(), "idle task is disabled: {}", t->get_name());
             }
         }
     }
 
-    next_up->run_elapsed();
+    static int missed_idle_runs;
+
+    if (!ran_some_idle_tasks)
+    {
+        if (missed_idle_runs++ > 100)
+        {
+            missed_idle_runs = 0;
+            LOG_ERROR(get_logger(),
+                "something amis: failed to run idle tasks for too long");
+        }
+    }
+
+    {
+        const auto realtime_tasks = get_sorted_realtime_tasks(next_up);
+        int ix = 0;
+        for (auto& it : realtime_tasks)
+        {
+            LOG_INFO(get_logger(),
+                "rt-sched[{}] called {} at {} (max: {}, avg {})", ix,
+                it->get_name(), it->time_left_until_deadline(),
+                it->max_time_taken(), it->average_time_taken());
+            ix++;
+        }
+        for (auto& it : realtime_tasks)
+        {
+            it->wait_for_deadline();
+            it->run_elapsed();
+        }
+    }
+
+    for (auto& it : next_up)
+    {
+        if (it->get_task_type() != TaskType::HARD_REALTIME)
+        {
+            it->run_elapsed();
+        }
+    }
 }
 
 void RealtimeKernel::run(const std::chrono::milliseconds& runtime)
