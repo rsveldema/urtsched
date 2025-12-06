@@ -17,18 +17,27 @@ class RealtimeKernel;
 
 using task_func_t = std::function<void()>;
 
+enum class TaskType
+{
+    HARD_REALTIME,
+    SOFT_REALTIME
+};
+
 class BaseTask
 {
 public:
-    BaseTask(const std::string& name, const std::chrono::microseconds& t,
+    BaseTask(TaskType tt, const std::string& name, const std::chrono::microseconds& t,
         task_func_t callback, logging::ILogger& logger)
-        : m_interval(t)
+        : m_task_type(tt)
+        , m_interval(t)
         , m_task_func(callback)
         , m_timeout(std::chrono::microseconds(0))
         , m_name(name)
         , m_logger(logger)
     {
     }
+
+    TaskType get_task_type() const { return m_task_type; }
 
     logging::ILogger& get_logger()
     {
@@ -101,6 +110,7 @@ public:
     }
 
 private:
+    TaskType m_task_type;
     std::chrono::microseconds m_interval = std::chrono::microseconds(0);
     std::chrono::nanoseconds m_max_time_taken = std::chrono::nanoseconds(0);
     std::chrono::microseconds m_total_time_taken = std::chrono::microseconds(0);
@@ -120,7 +130,7 @@ class IdleTask : public BaseTask
 public:
     IdleTask(const std::string& name, const std::chrono::microseconds& t,
         task_func_t callback, logging::ILogger& logger)
-        : BaseTask(name, t, callback, logger)
+        : BaseTask(TaskType::SOFT_REALTIME, name, t, callback, logger)
     {
     }
 };
@@ -128,9 +138,9 @@ public:
 class PeriodicTask : public BaseTask
 {
 public:
-    PeriodicTask(const std::string& name, const std::chrono::microseconds& t,
+    PeriodicTask(TaskType tt, const std::string& name, const std::chrono::microseconds& t,
         task_func_t callback, logging::ILogger& logger)
-        : BaseTask(name, t, callback, logger)
+        : BaseTask(tt, name, t, callback, logger)
     {
     }
 };
@@ -160,6 +170,7 @@ public:
     }
 
     [[nodiscard]] std::shared_ptr<PeriodicTask> add_periodic(
+        TaskType tt,
         const std::string& name, const std::chrono::microseconds& interval,
         const task_func_t& callback);
 

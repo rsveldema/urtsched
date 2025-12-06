@@ -54,11 +54,11 @@ void BaseTask::run()
 }
 
 
-[[nodiscard]] std::shared_ptr<PeriodicTask> RealtimeKernel::add_periodic(
+[[nodiscard]] std::shared_ptr<PeriodicTask> RealtimeKernel::add_periodic(TaskType tt,
     const std::string& name, const std::chrono::microseconds& interval,
     const task_func_t& callback)
 {
-    auto s = std::make_shared<PeriodicTask>(
+    auto s = std::make_shared<PeriodicTask>(tt,
         "periodic-" + name, interval, callback, m_logger);
     m_periodic_list.emplace_back(s);
     s->disable();
