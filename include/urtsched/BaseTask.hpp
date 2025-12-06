@@ -14,8 +14,9 @@ namespace realtime
 class BaseTask
 {
 public:
-    BaseTask(TaskType tt, const std::string& name, const std::chrono::microseconds& t,
-        task_func_t callback, logging::ILogger& logger)
+    BaseTask(TaskType tt, const std::string& name,
+        const std::chrono::microseconds& t, task_func_t callback,
+        logging::ILogger& logger)
         : m_task_type(tt)
         , m_interval(t)
         , m_task_func(callback)
@@ -25,7 +26,10 @@ public:
     {
     }
 
-    TaskType get_task_type() const { return m_task_type; }
+    TaskType get_task_type() const
+    {
+        return m_task_type;
+    }
 
     logging::ILogger& get_logger()
     {
@@ -43,13 +47,13 @@ public:
 
     /** called to wait for deadline to elapse because there's no more idle tasks
      * that we can squeeze into the time until this task needs to run.
-     * We only need to do this for hard-realtime tasks as soft ones can run when we
-     * have time for them afterwards.
+     * We only need to do this for hard-realtime tasks as soft ones can run when
+     * we have time for them afterwards.
      */
     void wait_for_deadline() const
     {
         assert(get_task_type() == TaskType::HARD_REALTIME);
-        while (! m_timeout.elapsed())
+        while (!m_timeout.elapsed())
         {
             ;
         }
@@ -130,4 +134,4 @@ private:
     logging::ILogger& m_logger;
 };
 
-}
+} // namespace realtime
