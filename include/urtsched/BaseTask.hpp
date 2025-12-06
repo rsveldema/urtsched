@@ -7,17 +7,10 @@
 #include <slogger/ILogger.hpp>
 #include <slogger/TimeUtils.hpp>
 
+#include "task_defs.hpp"
 
 namespace realtime
 {
-using task_func_t = std::function<void()>;
-
-enum class TaskType
-{
-    HARD_REALTIME,
-    SOFT_REALTIME
-};
-
 class BaseTask
 {
 public:
