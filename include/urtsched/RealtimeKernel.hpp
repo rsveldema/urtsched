@@ -48,10 +48,8 @@ public:
     [[nodiscard]] std::shared_ptr<IdleTask> add_idle_task(
         const std::string& name, const task_func_t& callback);
 
-
     /** return true on successful removal */
-    bool remove_periodic(const std::string& name);
-
+    bool remove(const std::shared_ptr<PeriodicTask>& task_ptr);
 
     bool should_exit() const
     {
@@ -72,6 +70,7 @@ public:
     }
 
 private:
+    static constexpr bool m_debug = false;
     logging::ILogger& m_logger;
     std::vector<std::shared_ptr<PeriodicTask>> m_periodic_list;
     std::vector<std::shared_ptr<IdleTask>> m_idle_list;

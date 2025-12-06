@@ -82,20 +82,38 @@ public:
         return m_timeout.time_left();
     }
 
-    std::chrono::nanoseconds max_time_taken() const
+    /** if you need the most accuracy */
+    std::chrono::nanoseconds max_time_taken_ns() const
     {
         return m_max_time_taken;
     }
 
-    std::chrono::nanoseconds warmup_max_time_taken() const
+    /** if you need the most accuracy */
+    std::chrono::nanoseconds warmup_max_time_taken_ns() const
     {
         return m_warmup_max_time_taken;
     }
 
-    std::chrono::microseconds average_time_taken() const
+    std::chrono::microseconds max_time_taken_us() const
+    {
+        return std::chrono::duration_cast<std::chrono::microseconds>( m_max_time_taken );
+    }
+
+    std::chrono::microseconds warmup_max_time_taken_us() const
+    {
+        return std::chrono::duration_cast<std::chrono::microseconds>(  m_warmup_max_time_taken );
+    }
+
+    std::chrono::nanoseconds average_time_taken_ns() const
+    {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+           average_time_taken_us());
+    }
+
+    std::chrono::microseconds average_time_taken_us() const
     {
         return std::chrono::microseconds(
-            (int64_t) ((double) m_total_time_taken.count() / m_num_calls));
+            (int64_t) ((double) m_total_time_taken_us.count() / m_num_calls));
     }
 
     void set_period(const std::chrono::microseconds& t)
@@ -122,7 +140,8 @@ private:
     TaskType m_task_type;
     std::chrono::microseconds m_interval = std::chrono::microseconds(0);
     std::chrono::nanoseconds m_max_time_taken = std::chrono::nanoseconds(0);
-    std::chrono::microseconds m_total_time_taken = std::chrono::microseconds(0);
+    // to avoid overflow, lets use micros here:
+    std::chrono::microseconds m_total_time_taken_us = std::chrono::microseconds(0);
     std::chrono::nanoseconds m_warmup_max_time_taken =
         std::chrono::nanoseconds(0);
 

@@ -37,7 +37,7 @@ void BaseTask::run()
             20; // lie a bit to make sure this task can be scheduled at all.
     }
 
-    m_total_time_taken +=
+    m_total_time_taken_us +=
         std::chrono::duration_cast<std::chrono::microseconds>(took);
 
 
@@ -76,19 +76,14 @@ void BaseTask::run()
 }
 
 
-bool RealtimeKernel::remove_periodic(const std::string& name)
+bool RealtimeKernel::remove(const std::shared_ptr<PeriodicTask>& task_ptr)
 {
-    for (size_t i = 0; i < m_periodic_list.size(); ++i)
-    {
-        if (m_periodic_list[i]->get_name() == "periodic-" + name)
-        {
-            m_periodic_list.erase(m_periodic_list.begin() + i);
-            return true;
-        }
-    }
-    return false;
+    const auto num_erased = std::erase_if(m_periodic_list, [task_ptr](const std::shared_ptr<PeriodicTask>& t) {
+        return task_ptr == t;
+    });
+    assert(num_erased < 2); // 0 or 1, more would be an internal error
+    return num_erased == 1;
 }
-
 
 std::shared_ptr<IdleTask> RealtimeKernel::add_idle_task(
     const std::string& name, const task_func_t& callback)
@@ -145,7 +140,7 @@ bool PeriodicTask::overlaps_with(const PeriodicTask& other) const
 {
     const auto t = other.time_left_until_deadline();
     const auto my_start = time_left_until_deadline();
-    const auto my_end = my_start + max_time_taken();
+    const auto my_end = my_start + max_time_taken_ns();
     return t >= my_start and t <= my_end;
 }
 
@@ -207,11 +202,12 @@ RealtimeKernel::get_sorted_realtime_tasks(
         }
     }
 
-    std::sort(ret.begin(), ret.end(), [](const std::shared_ptr<PeriodicTask>& t1,
-        const std::shared_ptr<PeriodicTask>& t2) {
-            return t1->time_left_until_deadline() < t2->time_left_until_deadline();
-        }
-    );
+    std::sort(ret.begin(), ret.end(),
+        [](const std::shared_ptr<PeriodicTask>& t1,
+            const std::shared_ptr<PeriodicTask>& t2) {
+            return t1->time_left_until_deadline() <
+                t2->time_left_until_deadline();
+        });
     return ret;
 }
 
@@ -234,7 +230,7 @@ void RealtimeKernel::step()
             if (t->is_enabled())
             {
                 if (next_up[0]->time_left_until_deadline() >
-                    t->max_time_taken())
+                    t->max_time_taken_ns())
                 {
                     ran_some_idle_tasks = true;
                     t->run();
@@ -260,16 +256,20 @@ void RealtimeKernel::step()
         }
     }
 
+    // run the hard-realtime tasks first to give them priority:
     {
         const auto realtime_tasks = get_sorted_realtime_tasks(next_up);
-        int ix = 0;
-        for (auto& it : realtime_tasks)
+        if (m_debug)
         {
-            LOG_INFO(get_logger(),
-                "rt-sched[{}] called {} at {} (max: {}, avg {})", ix,
-                it->get_name(), it->time_left_until_deadline(),
-                it->max_time_taken(), it->average_time_taken());
-            ix++;
+            int ix = 0;
+            for (auto& it : realtime_tasks)
+            {
+                LOG_INFO(get_logger(),
+                    "rt-sched[{}] called {} at {} (max: {}, avg {})", ix,
+                    it->get_name(), it->time_left_until_deadline(),
+                    it->max_time_taken_us(), it->average_time_taken_us());
+                ix++;
+            }
         }
         for (auto& it : realtime_tasks)
         {
@@ -278,6 +278,7 @@ void RealtimeKernel::step()
         }
     }
 
+    // lets be fair and run the soft-realtime tasks
     for (auto& it : next_up)
     {
         if (it->get_task_type() != TaskType::HARD_REALTIME)
@@ -307,22 +308,15 @@ void RealtimeKernel::run(const std::chrono::milliseconds& runtime)
 
 std::string BaseTask::get_service_status_as_json() const
 {
-    const auto warmup_max = warmup_max_time_taken();
-    const auto warmup_micros_max =
-        std::chrono::duration_cast<std::chrono::microseconds>(warmup_max);
+    const auto warmup_micros_max = warmup_max_time_taken_us();
     const double warmup_max_flt =
         (warmup_micros_max.count() / (1000.0 * 1000.0));
 
-    const auto max = max_time_taken();
-    const auto micros_max =
-        std::chrono::duration_cast<std::chrono::microseconds>(max);
+    const auto micros_max = max_time_taken_us();
     const double max_flt = (micros_max.count() / (1000.0 * 1000.0));
 
-    const auto avg = average_time_taken();
-    const auto micros_avg =
-        std::chrono::duration_cast<std::chrono::microseconds>(avg);
+    const auto micros_avg = average_time_taken_us();
     const double avg_flt = (micros_avg.count() / (1000.0 * 1000.0));
-
 
     return std::format(
         "{{ \"name\": \"{}\", \"max\": {},  \"warmup\": {},  \"avg\": {} }}",
