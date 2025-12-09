@@ -211,6 +211,10 @@ void RealtimeKernel::step()
     {
         for (auto& t : m_idle_list)
         {
+            if (!t)
+            {
+                continue;
+            }
             if (t->is_enabled())
             {
                 if (next_up[0]->time_left_until_deadline() >
