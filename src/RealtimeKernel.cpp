@@ -69,7 +69,7 @@ void BaseTask::run()
     const std::chrono::microseconds& interval, const task_func_t& callback)
 {
     auto s = std::make_shared<PeriodicTask>(
-        tt, "periodic-" + name, interval, callback, m_logger);
+        tt, "periodic: " + name, interval, callback, m_logger);
     m_periodic_list.emplace_back(s);
     s->disable();
     return s;
@@ -89,7 +89,7 @@ std::shared_ptr<IdleTask> RealtimeKernel::add_idle_task(
     const std::string& name, const task_func_t& callback)
 {
     auto s =
-        std::make_shared<IdleTask>("idle-" + name, 0us, callback, m_logger);
+        std::make_shared<IdleTask>("idle: " + name, 0us, callback, m_logger);
     m_idle_list.emplace_back(s);
     s->enable();
     return s;
