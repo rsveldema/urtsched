@@ -10,6 +10,7 @@
 #include <slogger/TimeUtils.hpp>
 
 #include <urtsched/IService.hpp>
+#include <urtsched/fixed_size_vector.hpp>
 
 #include "BaseTask.hpp"
 #include "IdleTask.hpp"
@@ -85,8 +86,11 @@ private:
     logging::ILogger& m_logger;
     const std::string m_name;
 
-    std::vector<std::shared_ptr<PeriodicTask>> m_periodic_list;
-    std::vector<std::shared_ptr<IdleTask>> m_idle_list;
+    static constexpr auto MAX_PERIODIC_TASKS = 64;
+    static constexpr auto MAX_IDLE_TASKS = 16;
+
+    realtime::fixed_size_vector<std::shared_ptr<PeriodicTask>, MAX_PERIODIC_TASKS> m_periodic_list;
+    realtime::fixed_size_vector<std::shared_ptr<IdleTask>, MAX_IDLE_TASKS> m_idle_list;
 
     std::vector<std::shared_ptr<PeriodicTask>> get_next_periodics();
 

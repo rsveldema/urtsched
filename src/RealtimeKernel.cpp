@@ -10,77 +10,25 @@
 
 using namespace std::chrono_literals;
 
-static constexpr auto WARMUP_COUNT = 5;
-
-static constexpr auto MAX_ALLOWED_TASK_TIME = 500us;
-
 
 namespace realtime
 {
-void BaseTask::run()
-{
-    m_num_calls++;
-    const auto start = time_utils::get_current_time();
-    const auto task_status = m_task_func(*this);
-    const auto end = time_utils::get_current_time();
-    assert(end >= start); // overflow?
-    auto took = end - start;
-
-    if (took > MAX_ALLOWED_TASK_TIME)
-    {
-        const auto micros =
-            std::chrono::duration_cast<std::chrono::microseconds>(took);
-
-        const auto avg = average_time_taken_ns();
-        LOG_ERROR(get_logger(),
-            "{} - task[{}] took too long: {}, avg = {}, calls = {}, ok = {}\n",
-            m_kernel->get_name(), m_name, micros, avg, m_num_calls, m_num_task_ok_calls);
-
-        // lie a bit to make sure this task can be scheduled at all:
-        took = took / 20;
-    }
-
-    m_total_time_taken_us +=
-        std::chrono::duration_cast<std::chrono::microseconds>(took);
-
-    if (task_status == TaskStatus::TASK_YIELD)
-    {
-        // we yielded, so do not count this time towards our stats.
-        return;
-    }
-
-    m_num_task_ok_calls++;
-
-    if (m_num_calls < WARMUP_COUNT)
-    {
-        if (took > m_warmup_max_time_taken)
-        {
-            m_warmup_max_time_taken = took;
-        }
-    }
-    else
-    {
-        if (took > MAX_ALLOWED_TASK_TIME)
-        {
-            // lets not count towards our normal statistics.
-            return;
-        }
-
-        if (took > m_max_time_taken)
-        {
-            m_max_time_taken = took;
-        }
-    }
-}
-
-
 [[nodiscard]] std::shared_ptr<PeriodicTask> RealtimeKernel::add_periodic(
     TaskType tt, const std::string& name,
     const std::chrono::microseconds& interval, const task_func_t& callback)
 {
     auto s = std::make_shared<PeriodicTask>(
         tt, "periodic: " + name, interval, callback, m_logger, this);
-    m_periodic_list.emplace_back(s);
+    for (size_t i = 0; i < m_periodic_list.size(); i++)
+    {
+        if (m_periodic_list[i] == nullptr)
+        {
+            m_periodic_list[i] = s;
+            s->disable();
+            return s;
+        }
+    }
+    m_periodic_list.push_back(s);
     s->disable();
     return s;
 }
@@ -88,12 +36,15 @@ void BaseTask::run()
 
 bool RealtimeKernel::remove(const std::shared_ptr<PeriodicTask>& task_ptr)
 {
-    const auto num_erased = std::erase_if(
-        m_periodic_list, [task_ptr](const std::shared_ptr<PeriodicTask>& t) {
-            return task_ptr == t;
-        });
-    assert(num_erased < 2); // 0 or 1, more would be an internal error
-    return num_erased == 1;
+    for (size_t ix = 0; ix < m_periodic_list.size(); ix++)
+    {
+        if (m_periodic_list[ix] == task_ptr)
+        {
+            m_periodic_list[ix] = nullptr;
+            return true;
+        }
+    }
+    return false;
 }
 
 std::shared_ptr<IdleTask> RealtimeKernel::add_idle_task(
@@ -101,7 +52,18 @@ std::shared_ptr<IdleTask> RealtimeKernel::add_idle_task(
 {
     auto s = std::make_shared<IdleTask>(
         "idle: " + name, 0us, callback, m_logger, this);
-    m_idle_list.emplace_back(s);
+
+    for (size_t i = 0; i < m_idle_list.size(); i++)
+    {
+        if (m_idle_list[i] == nullptr)
+        {
+            m_idle_list[i] = s;
+            s->enable();
+            return s;
+        }
+    }
+
+    m_idle_list.push_back(s);
     s->enable();
     return s;
 }
@@ -111,9 +73,12 @@ void RealtimeKernel::run_idle_tasks()
 {
     for (auto& t : m_idle_list)
     {
-        if (t->is_enabled())
+        if (t)
         {
-            t->run();
+            if (t->is_enabled())
+            {
+                t->run();
+            }
         }
     }
 }
@@ -125,6 +90,10 @@ std::shared_ptr<PeriodicTask> RealtimeKernel::get_earliest_next_periodic()
 
     for (auto& t : m_periodic_list)
     {
+        if (!t)
+        {
+            continue;
+        }
         if (!t->is_enabled())
         {
             // LOG_INFO(get_logger() "discarding: {} = disabled\n",
@@ -164,6 +133,10 @@ RealtimeKernel::get_periodics_that_can_overlap(
 
     for (auto& t : m_periodic_list)
     {
+        if (! t)
+        {
+            continue;
+        }
         if (!t->is_enabled())
         {
             // LOG_INFO(get_logger() "discarding: {} = disabled\n",
@@ -246,11 +219,6 @@ void RealtimeKernel::step()
                     ran_some_idle_tasks = true;
                     t->run();
                 }
-            }
-            else
-            {
-                LOG_INFO(
-                    get_logger(), "idle task is disabled: {}", t->get_name());
             }
         }
     }
