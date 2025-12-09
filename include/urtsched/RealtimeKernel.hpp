@@ -17,7 +17,7 @@
 
 namespace realtime
 {
-/** schedules stuff on a single core.
+/** Schedules stuff on a single core.
  * As its for a single core only, it does not need
  * locks/synchronization code and is therefore really fast.
  * We do not support between code task migration as a consequence.
@@ -25,8 +25,8 @@ namespace realtime
 class RealtimeKernel : public service::IService
 {
 public:
-    RealtimeKernel(logging::ILogger& logger)
-        : m_logger(logger)
+    RealtimeKernel(logging::ILogger& logger, const std::string& name)
+        : m_logger(logger), m_name(name)
     {
     }
 
@@ -40,11 +40,22 @@ public:
         return error::Error::OK;
     }
 
+    /** returns the name of the kernel */
+    const std::string& get_name() const { return m_name;}
+
+
+    /** Add a periodic task to the scheduler.
+     * The returned task is disabled by default.
+     * Therefore, call periodic->enable() to enable it.
+     */
     [[nodiscard]] std::shared_ptr<PeriodicTask> add_periodic(
         TaskType tt,
         const std::string& name, const std::chrono::microseconds& interval,
         const task_func_t& callback);
 
+    /** Add an idle task to the scheduler. 
+     * It is enabled by default.
+     */
     [[nodiscard]] std::shared_ptr<IdleTask> add_idle_task(
         const std::string& name, const task_func_t& callback);
 
@@ -72,6 +83,8 @@ public:
 private:
     static constexpr bool m_debug = false;
     logging::ILogger& m_logger;
+    const std::string m_name;
+
     std::vector<std::shared_ptr<PeriodicTask>> m_periodic_list;
     std::vector<std::shared_ptr<IdleTask>> m_idle_list;
 

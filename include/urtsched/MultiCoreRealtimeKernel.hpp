@@ -18,7 +18,7 @@ public:
 
     std::shared_ptr<RealtimeKernel> add_core()
     {
-        auto k = std::make_shared<RealtimeKernel>(m_logger);
+        auto k = std::make_shared<RealtimeKernel>(m_logger, "core-" + std::to_string(m_kernels.size()));
         m_bus.add(k);
         m_kernels.push_back(k);
         return k;

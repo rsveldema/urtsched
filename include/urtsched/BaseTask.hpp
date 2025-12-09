@@ -3,6 +3,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <cassert>
 
 #include <slogger/ILogger.hpp>
 #include <slogger/TimeUtils.hpp>
@@ -11,19 +12,23 @@
 
 namespace realtime
 {
+class RealtimeKernel;
+
 class BaseTask
 {
 public:
     BaseTask(TaskType tt, const std::string& name,
         const std::chrono::microseconds& t, task_func_t callback,
-        logging::ILogger& logger)
+        logging::ILogger& logger, RealtimeKernel* kernel)
         : m_task_type(tt)
         , m_interval(t)
         , m_task_func(callback)
         , m_timeout(std::chrono::microseconds(0))
         , m_name(name)
         , m_logger(logger)
+        , m_kernel(kernel)
     {
+        assert(kernel != nullptr);
     }
 
     TaskType get_task_type() const
@@ -146,11 +151,13 @@ private:
         std::chrono::nanoseconds(0);
 
     uint64_t m_num_calls = 0;
+    uint64_t m_num_task_ok_calls = 0;
     task_func_t m_task_func;
     time_utils::Timeout m_timeout;
     bool m_enabled = false;
     std::string m_name;
     logging::ILogger& m_logger;
+    RealtimeKernel* m_kernel = nullptr;
 };
 
 } // namespace realtime

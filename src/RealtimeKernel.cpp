@@ -21,7 +21,7 @@ void BaseTask::run()
 {
     m_num_calls++;
     const auto start = time_utils::get_current_time();
-    m_task_func();
+    const auto task_status = m_task_func(*this);
     const auto end = time_utils::get_current_time();
     assert(end >= start); // overflow?
     auto took = end - start;
@@ -31,15 +31,25 @@ void BaseTask::run()
         const auto micros =
             std::chrono::duration_cast<std::chrono::microseconds>(took);
 
-        LOG_ERROR(get_logger(), "task[{}] took too long: {} millis",
-            m_name.c_str(), (micros.count() / 1000.0));
-        took = took /
-            20; // lie a bit to make sure this task can be scheduled at all.
+        const auto avg = average_time_taken_ns();
+        LOG_ERROR(get_logger(),
+            "{} - task[{}] took too long: {}, avg = {}, calls = {}, ok = {}\n",
+            m_kernel->get_name(), m_name, micros, avg, m_num_calls, m_num_task_ok_calls);
+
+        // lie a bit to make sure this task can be scheduled at all:
+        took = took / 20;
     }
 
     m_total_time_taken_us +=
         std::chrono::duration_cast<std::chrono::microseconds>(took);
 
+    if (task_status == TaskStatus::TASK_YIELD)
+    {
+        // we yielded, so do not count this time towards our stats.
+        return;
+    }
+
+    m_num_task_ok_calls++;
 
     if (m_num_calls < WARMUP_COUNT)
     {
@@ -69,7 +79,7 @@ void BaseTask::run()
     const std::chrono::microseconds& interval, const task_func_t& callback)
 {
     auto s = std::make_shared<PeriodicTask>(
-        tt, "periodic: " + name, interval, callback, m_logger);
+        tt, "periodic: " + name, interval, callback, m_logger, this);
     m_periodic_list.emplace_back(s);
     s->disable();
     return s;
@@ -78,9 +88,10 @@ void BaseTask::run()
 
 bool RealtimeKernel::remove(const std::shared_ptr<PeriodicTask>& task_ptr)
 {
-    const auto num_erased = std::erase_if(m_periodic_list, [task_ptr](const std::shared_ptr<PeriodicTask>& t) {
-        return task_ptr == t;
-    });
+    const auto num_erased = std::erase_if(
+        m_periodic_list, [task_ptr](const std::shared_ptr<PeriodicTask>& t) {
+            return task_ptr == t;
+        });
     assert(num_erased < 2); // 0 or 1, more would be an internal error
     return num_erased == 1;
 }
@@ -88,8 +99,8 @@ bool RealtimeKernel::remove(const std::shared_ptr<PeriodicTask>& task_ptr)
 std::shared_ptr<IdleTask> RealtimeKernel::add_idle_task(
     const std::string& name, const task_func_t& callback)
 {
-    auto s =
-        std::make_shared<IdleTask>("idle: " + name, 0us, callback, m_logger);
+    auto s = std::make_shared<IdleTask>(
+        "idle: " + name, 0us, callback, m_logger, this);
     m_idle_list.emplace_back(s);
     s->enable();
     return s;
@@ -244,15 +255,24 @@ void RealtimeKernel::step()
         }
     }
 
-    static int missed_idle_runs;
 
     if (!ran_some_idle_tasks)
     {
-        if (missed_idle_runs++ > 100)
+        if (m_idle_list.empty())
         {
-            missed_idle_runs = 0;
-            LOG_ERROR(get_logger(),
-                "something amis: failed to run idle tasks for too long");
+            // no idle tasks to run, so its ok.
+        }
+        else
+        {
+            static int missed_idle_runs;
+            if (missed_idle_runs++ > 100)
+            {
+                missed_idle_runs = 0;
+                LOG_ERROR(get_logger(),
+                    "something amis ({}): failed to run idle tasks for too "
+                    "long",
+                    m_name);
+            }
         }
     }
 

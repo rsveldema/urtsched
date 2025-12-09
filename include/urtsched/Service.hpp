@@ -3,6 +3,7 @@
 #include <optional>
 #include <queue>
 #include <memory>
+#include <map>
 
 #include <slogger/ILogger.hpp>
 
@@ -30,17 +31,14 @@ public:
         return m_rt_kernel;
     }
 
-    /** if there's nothing to do, call the work pushed with push_work_queue()
+    /** if there's nothing to do, call the work pushed with run_oneshot_idle_task()
      */
-    void create_idle_handler(const std::string& name);
-    void push_work_queue(const realtime::task_func_t& f);
+    void run_oneshot_idle_task(const std::string& name, const realtime::task_func_t& f);
 
 private:
     std::shared_ptr<realtime::RealtimeKernel> m_rt_kernel;
     logging::ILogger& m_logger;
 
-    std::optional<std::shared_ptr<realtime::IdleTask>> m_idle_proxy;
-
-    std::queue<realtime::task_func_t> m_work_queue;
+    std::map<std::string, std::shared_ptr<realtime::IdleTask>> m_tasks;
 };
 } // namespace service

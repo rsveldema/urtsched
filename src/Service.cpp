@@ -5,27 +5,26 @@
 
 namespace service
 {
-void Service::create_idle_handler(const std::string& name)
+
+void Service::run_oneshot_idle_task(
+    const std::string& name, const realtime::task_func_t& f)
 {
-    m_idle_proxy = get_rt_kernel()->add_idle_task("async-handler-" + name, [this]() {
+    auto it = m_tasks.find(name);
+    if (it != m_tasks.end())
+    {
+        it->second->enable();
+        return;
+    }
 
-        if (m_work_queue.empty())
-        {
-            return;  
-        }
+    auto task = get_rt_kernel()->add_idle_task(
+        "async-task-" + name, [this, f](realtime::BaseTask& t) {
+            t.disable();
+            return f(t);
+        });
 
-        auto func = m_work_queue.back();
-        m_work_queue.pop();
-        func();
-    });
-}
+    m_tasks[name] = task;
 
-void Service::push_work_queue(const realtime::task_func_t& f)
-{
-    // should have a task to process the
-    // work queue items
-    assert(m_idle_proxy.has_value());
-    m_work_queue.push(f);
+    task->enable();
 }
 
 } // namespace service
