@@ -108,7 +108,12 @@ void MultiCoreRealtimeKernel::run(const std::chrono::milliseconds& max_runtime)
     for (unsigned i = 1; i < m_kernels.size(); i++)
     {
         threads.emplace_back(
-            [this, max_runtime, i]() { m_kernels[i]->run(max_runtime); });
+            [this, max_runtime, i]() {
+
+                m_kernels[i]->set_sched_affinity(m_first_reserved_core + i);
+
+                m_kernels[i]->run(max_runtime);
+                });
     }
 
     m_kernels[0]->run(max_runtime);

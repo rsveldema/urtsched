@@ -1,18 +1,40 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
+#include <pthread.h> //pthread_t
+#include <sched.h>   //cpu_set_t , CPU_SET
+
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
+#include <thread>
+
 #include <urtsched/RealtimeKernel.hpp>
 
 #include <slogger/ILogger.hpp>
 #include <slogger/StringUtils.hpp>
 #include <slogger/TimeUtils.hpp>
 
-#include <algorithm>
-#include <cstdio>
-#include <thread>
-
 using namespace std::chrono_literals;
 
 
 namespace realtime
 {
+void RealtimeKernel::set_sched_affinity(uint32_t core)
+{
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);      // clears the cpuset
+    CPU_SET(core, &cpuset); // set CPU 2 on cpuset
+
+    /* bind process to processor 0 */
+    if (int status = pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset); status < 0)
+    {
+        LOG_ERROR(get_logger(), "failed to set thread affinity: %s", strerror(-status));
+    }
+}
+
+
 [[nodiscard]] std::shared_ptr<PeriodicTask> RealtimeKernel::add_periodic(
     TaskType tt, const std::string& name,
     const std::chrono::microseconds& interval, const task_func_t& callback)
@@ -133,7 +155,7 @@ RealtimeKernel::get_periodics_that_can_overlap(
 
     for (auto& t : m_periodic_list)
     {
-        if (! t)
+        if (!t)
         {
             continue;
         }

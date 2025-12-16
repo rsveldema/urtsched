@@ -31,6 +31,8 @@ public:
     {
     }
 
+    void set_sched_affinity(uint32_t core);
+
     [[nodiscard]] error::Error init() override
     {
         return error::Error::OK;
@@ -54,7 +56,7 @@ public:
         const std::string& name, const std::chrono::microseconds& interval,
         const task_func_t& callback);
 
-    /** Add an idle task to the scheduler. 
+    /** Add an idle task to the scheduler.
      * It is enabled by default.
      */
     [[nodiscard]] std::shared_ptr<IdleTask> add_idle_task(

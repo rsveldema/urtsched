@@ -27,10 +27,11 @@ public:
      * start the service with 'taskset --cpu-list 2,3'.
      */
     MultiCoreRealtimeKernel(
-        logging::ILogger& logger, service::ServiceBus& bus, CoreReservationMechanism reserve_cores)
+        logging::ILogger& logger, service::ServiceBus& bus, CoreReservationMechanism reserve_cores, uint32_t first_reserved_core)
         : m_bus(bus)
         , m_logger(logger)
         , m_reserve_cores(reserve_cores)
+        , m_first_reserved_core(first_reserved_core)
     {
     }
 
@@ -54,6 +55,7 @@ private:
     service::ServiceBus& m_bus;
     logging::ILogger& m_logger;
     const CoreReservationMechanism m_reserve_cores;
+    const uint32_t m_first_reserved_core;
 
     // one per core:
     std::vector<std::shared_ptr<RealtimeKernel>> m_kernels;
