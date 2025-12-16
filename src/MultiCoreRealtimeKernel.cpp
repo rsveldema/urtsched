@@ -25,13 +25,11 @@ namespace realtime
 void echo(const std::string& value, const std::string& filename,
     logging::ILogger& logger)
 {
-    LOG_INFO(logger, "writing {} to {}",
-         value, filename);
+    LOG_INFO(logger, "writing {} to {}", value, filename);
     FILE* f = fopen(filename.c_str(), "w");
     if (!f)
     {
-        LOG_ERROR(logger, "failed to open {} for writing",
-            filename);
+        LOG_ERROR(logger, "failed to open {} for writing", filename);
         assert(f);
     }
     fprintf(f, "%s\n", value.c_str());
@@ -45,7 +43,7 @@ void echo(
 }
 
 
-void MultiCoreRealtimeKernel::reserve_cores()
+void MultiCoreRealtimeKernel::reserve_cores_using_cgroups()
 {
     std::string CPUSET_PATH = "/sys/fs/cgroup/cpuset/urtsched";
     std::string URTSCHED_PATH = CPUSET_PATH + "/urtsched";
@@ -61,7 +59,7 @@ void MultiCoreRealtimeKernel::reserve_cores()
                 abort();
             }
         }
-        
+
         shell::run_cmd("mount -t cgroup -ocpuset cpuset " + CPUSET_PATH,
             get_logger(), shell::RunOpt::ABORT_ON_ERROR);
 
@@ -89,7 +87,20 @@ void MultiCoreRealtimeKernel::reserve_cores()
 
 void MultiCoreRealtimeKernel::run(const std::chrono::milliseconds& max_runtime)
 {
-    reserve_cores();
+    switch (m_reserve_cores)
+    {
+    case CoreReservationMechanism::CGROUPS:
+        reserve_cores_using_cgroups();
+        break;
+    case CoreReservationMechanism::TASKSET:
+        // todo: check that we're actually on the cores we expect to be
+        LOG_INFO(get_logger(), "pls use taskset cmd to pre-place the service");
+        break;
+    case CoreReservationMechanism::NONE:
+        LOG_INFO(get_logger(),
+            "assuming service cpu reservation is managed via some other way");
+        break;
+    }
 
     assert(!m_kernels.empty());
 

@@ -10,15 +10,34 @@
 
 namespace realtime
 {
+enum class CoreReservationMechanism
+{
+    NONE,
+    TASKSET,
+    CGROUPS
+};
+
 
 class MultiCoreRealtimeKernel
 {
 public:
-    MultiCoreRealtimeKernel(logging::ILogger& logger, service::ServiceBus& bus) : m_bus(bus), m_logger(logger) {}
+    /** when reserve-cores is true, it will use cgroups to reserve cores
+     * for the service. You can turn this off if you've instead have some other way to schedule the service.
+     * For example, under linux you can start the kernel with isolcpus=2,3 and then at runtime
+     * start the service with 'taskset --cpu-list 2,3'.
+     */
+    MultiCoreRealtimeKernel(
+        logging::ILogger& logger, service::ServiceBus& bus, CoreReservationMechanism reserve_cores)
+        : m_bus(bus)
+        , m_logger(logger)
+        , m_reserve_cores(reserve_cores)
+    {
+    }
 
     std::shared_ptr<RealtimeKernel> add_core()
     {
-        auto k = std::make_shared<RealtimeKernel>(m_logger, "core-" + std::to_string(m_kernels.size()));
+        auto k = std::make_shared<RealtimeKernel>(
+            m_logger, "core-" + std::to_string(m_kernels.size()));
         m_bus.add(k);
         m_kernels.push_back(k);
         return k;
@@ -26,16 +45,20 @@ public:
 
     void run(const std::chrono::milliseconds& max_runtime);
 
-    logging::ILogger& get_logger() const { return m_logger; }
+    logging::ILogger& get_logger() const
+    {
+        return m_logger;
+    }
 
 private:
     service::ServiceBus& m_bus;
     logging::ILogger& m_logger;
+    const CoreReservationMechanism m_reserve_cores;
 
     // one per core:
     std::vector<std::shared_ptr<RealtimeKernel>> m_kernels;
 
-    void reserve_cores();
+    void reserve_cores_using_cgroups();
 };
 
-}
+} // namespace realtime
