@@ -20,9 +20,9 @@ namespace realtime
 void BaseTask::run()
 {
     m_num_calls++;
-    const auto start = time_utils::get_current_time();
+    const auto start = m_timer.get_time_ns();
     const auto task_status = m_task_func(*this);
-    const auto end = time_utils::get_current_time();
+    const auto end = m_timer.get_time_ns();
     assert(end >= start); // overflow?
     auto took = end - start;
 

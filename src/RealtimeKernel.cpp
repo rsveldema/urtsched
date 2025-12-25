@@ -39,7 +39,7 @@ void RealtimeKernel::set_sched_affinity(uint32_t core)
     TaskType tt, const std::string& name,
     const std::chrono::microseconds& interval, const task_func_t& callback)
 {
-    auto s = std::make_shared<PeriodicTask>(
+    auto s = std::make_shared<PeriodicTask>(m_timer,
         tt, "periodic: " + name, interval, callback, m_logger, this);
     for (size_t i = 0; i < m_periodic_list.size(); i++)
     {
@@ -72,7 +72,7 @@ bool RealtimeKernel::remove(const std::shared_ptr<PeriodicTask>& task_ptr)
 std::shared_ptr<IdleTask> RealtimeKernel::add_idle_task(
     const std::string& name, const task_func_t& callback)
 {
-    auto s = std::make_shared<IdleTask>(
+    auto s = std::make_shared<IdleTask>(m_timer,
         "idle: " + name, 0us, callback, m_logger, this);
 
     for (size_t i = 0; i < m_idle_list.size(); i++)
@@ -304,7 +304,7 @@ void RealtimeKernel::step()
 
 void RealtimeKernel::run(const std::chrono::milliseconds& runtime)
 {
-    time_utils::Timeout t{ runtime };
+    time_utils::Timeout t{m_timer, runtime};
     while (!should_exit())
     {
         step();

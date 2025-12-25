@@ -7,6 +7,7 @@
 
 #include <slogger/ILogger.hpp>
 #include <slogger/TimeUtils.hpp>
+#include <slogger/ITimer.hpp>
 
 #include "task_defs.hpp"
 
@@ -17,13 +18,14 @@ class RealtimeKernel;
 class BaseTask
 {
 public:
-    BaseTask(TaskType tt, const std::string& name,
+    BaseTask(time_utils::ITimer& timer, TaskType tt, const std::string& name,
         const std::chrono::microseconds& t, task_func_t callback,
         logging::ILogger& logger, RealtimeKernel* kernel)
-        : m_task_type(tt)
+        : m_timer(timer)
+        , m_task_type(tt)
         , m_interval(t)
         , m_task_func(callback)
-        , m_timeout(std::chrono::microseconds(0))
+        , m_timeout(timer, std::chrono::microseconds(0))
         , m_name(name)
         , m_logger(logger)
         , m_kernel(kernel)
@@ -71,7 +73,7 @@ public:
             assert(m_timeout.elapsed());
         }
 
-        m_timeout = time_utils::Timeout(m_interval);
+        m_timeout.reset(m_interval);
 
         run();
     }
@@ -142,6 +144,7 @@ public:
     }
 
 private:
+    time_utils::ITimer& m_timer;
     TaskType m_task_type;
     std::chrono::microseconds m_interval = std::chrono::microseconds(0);
     std::chrono::nanoseconds m_max_time_taken = std::chrono::nanoseconds(0);

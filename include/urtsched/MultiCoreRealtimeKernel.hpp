@@ -4,6 +4,8 @@
 #include <vector>
 
 #include <slogger/ILogger.hpp>
+#include <slogger/TimeUtils.hpp>
+#include <slogger/ITimer.hpp>
 
 #include <urtsched/RealtimeKernel.hpp>
 #include <urtsched/ServiceBus.hpp>
@@ -26,9 +28,10 @@ public:
      * For example, under linux you can start the kernel with isolcpus=2,3 and then at runtime
      * start the service with 'taskset --cpu-list 2,3'.
      */
-    MultiCoreRealtimeKernel(
+    MultiCoreRealtimeKernel(time_utils::ITimer& timer,
         logging::ILogger& logger, service::ServiceBus& bus, CoreReservationMechanism reserve_cores, uint32_t first_reserved_core)
-        : m_bus(bus)
+        : m_timer(timer)
+        , m_bus(bus)
         , m_logger(logger)
         , m_reserve_cores(reserve_cores)
         , m_first_reserved_core(first_reserved_core)
@@ -37,7 +40,7 @@ public:
 
     std::shared_ptr<RealtimeKernel> add_core()
     {
-        auto k = std::make_shared<RealtimeKernel>(
+        auto k = std::make_shared<RealtimeKernel>(m_timer,
             m_logger, "core-" + std::to_string(m_kernels.size()));
         m_bus.add(k);
         m_kernels.push_back(k);
@@ -52,6 +55,7 @@ public:
     }
 
 private:
+    time_utils::ITimer& m_timer;
     service::ServiceBus& m_bus;
     logging::ILogger& m_logger;
     const CoreReservationMechanism m_reserve_cores;

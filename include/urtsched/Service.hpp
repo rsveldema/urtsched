@@ -6,6 +6,7 @@
 #include <map>
 
 #include <slogger/ILogger.hpp>
+#include <slogger/ITimer.hpp>
 
 #include <urtsched/RealtimeKernel.hpp>
 
@@ -20,6 +21,12 @@ public:
         , m_logger(logger)
     {
     }
+
+    time_utils::ITimer& get_timer()
+    {
+        return m_rt_kernel->get_timer();
+    }
+
 
     logging::ILogger& get_logger()
     {

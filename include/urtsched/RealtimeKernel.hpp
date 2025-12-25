@@ -8,6 +8,7 @@
 
 #include <slogger/ILogger.hpp>
 #include <slogger/TimeUtils.hpp>
+#include <slogger/ITimer.hpp>
 
 #include <urtsched/IService.hpp>
 #include <urtsched/fixed_size_vector.hpp>
@@ -26,9 +27,14 @@ namespace realtime
 class RealtimeKernel : public service::IService
 {
 public:
-    RealtimeKernel(logging::ILogger& logger, const std::string& name)
-        : m_logger(logger), m_name(name)
+    RealtimeKernel(time_utils::ITimer& timer, logging::ILogger& logger, const std::string& name)
+        : m_timer(timer), m_logger(logger), m_name(name)
     {
+    }
+
+    time_utils::ITimer& get_timer()
+    {
+        return m_timer;
     }
 
     void set_sched_affinity(uint32_t core);
@@ -84,6 +90,7 @@ public:
     }
 
 private:
+    time_utils::ITimer& m_timer;
     static constexpr bool m_debug = false;
     logging::ILogger& m_logger;
     const std::string m_name;
