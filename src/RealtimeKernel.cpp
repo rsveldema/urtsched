@@ -195,22 +195,25 @@ std::vector<std::shared_ptr<PeriodicTask>> RealtimeKernel::get_next_periodics()
 }
 
 
-std::vector<std::shared_ptr<PeriodicTask>>
+std::vector<PeriodicTask*>
 RealtimeKernel::get_sorted_realtime_tasks(
     const std::vector<std::shared_ptr<PeriodicTask>>& next_up)
 {
-    std::vector<std::shared_ptr<PeriodicTask>> ret;
+    std::vector<PeriodicTask*> ret;
     for (const auto& it : next_up)
     {
         if (it->get_task_type() == TaskType::HARD_REALTIME)
         {
-            ret.push_back(it);
+            ret.push_back(it.get());
         }
     }
 
     std::sort(ret.begin(), ret.end(),
-        [](const std::shared_ptr<PeriodicTask>& t1,
-            const std::shared_ptr<PeriodicTask>& t2) {
+        [](const PeriodicTask* t1,
+            const PeriodicTask* t2) {
+                if (t1 == t2) {
+                    return false;
+                }
             return t1->time_left_until_deadline() <
                 t2->time_left_until_deadline();
         });

@@ -112,7 +112,7 @@ private:
     std::vector<std::shared_ptr<PeriodicTask>> get_periodics_that_can_overlap(const std::shared_ptr<PeriodicTask>& next);
 
     /** return a sorted list of real-time tasks */
-    std::vector<std::shared_ptr<PeriodicTask>> get_sorted_realtime_tasks(const std::vector<std::shared_ptr<PeriodicTask>>& next_up);
+    std::vector<PeriodicTask*> get_sorted_realtime_tasks(const std::vector<std::shared_ptr<PeriodicTask>>& next_up);
 
     void run_idle_tasks();
 };
