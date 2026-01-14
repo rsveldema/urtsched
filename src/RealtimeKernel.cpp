@@ -204,19 +204,29 @@ RealtimeKernel::get_sorted_realtime_tasks(
     {
         if (it->get_task_type() == TaskType::HARD_REALTIME)
         {
+            assert(std::find(ret.begin(), ret.end(), it.get()) == ret.end());
             ret.push_back(it.get());
         }
     }
 
-    std::sort(ret.begin(), ret.end(),
-        [](const PeriodicTask* t1,
-            const PeriodicTask* t2) {
-                if (t1 == t2) {
-                    return false;
-                }
-            return t1->time_left_until_deadline() <
-                t2->time_left_until_deadline();
-        });
+    struct
+    {
+        bool operator()(const PeriodicTask* t1,
+           const PeriodicTask* t2) const {
+            if (t1 == t2) {
+                return false;
+            }
+            const auto d1 = t1->time_left_until_deadline();
+            const auto d2 = t2->time_left_until_deadline();
+            if (d1 == d2)
+            {
+                return false;
+            }
+            return d1 < d2;
+        }
+    }  customLess;
+
+    std::sort(ret.begin(), ret.end(),customLess);
     return ret;
 }
 
