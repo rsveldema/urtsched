@@ -315,14 +315,14 @@ void RealtimeKernel::step()
     }
 }
 
-void RealtimeKernel::run(const std::chrono::milliseconds& runtime)
+void RealtimeKernel::run(std::optional<const std::chrono::milliseconds> runtime)
 {
-    time_utils::Timeout t{m_timer, runtime};
+    time_utils::Timeout t{m_timer, runtime.value_or(std::chrono::milliseconds(0))};
     while (!should_exit())
     {
         step();
 
-        if (runtime.count() > 0)
+        if (runtime.has_value() && runtime.value().count() > 0)
         {
             if (t.elapsed())
             {

@@ -76,9 +76,9 @@ public:
         return false;
     }
 
-    /** @param max_runtime if 0 return forever
+    /** @param max_runtime if no value is provided or if 0 run forever
      */
-    void run(const std::chrono::milliseconds& max_runtime);
+    void run(std::optional<const std::chrono::milliseconds> max_runtime);
 
     void step();
 
