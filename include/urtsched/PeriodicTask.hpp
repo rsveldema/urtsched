@@ -23,6 +23,19 @@ public:
     }
 
     bool overlaps_with(const PeriodicTask& other) const;
+
+    void snapshot_deadline()
+    {
+        m_snapshot_deadline = time_left_until_deadline();
+    }
+
+    std::chrono::nanoseconds get_snapshot_deadline() const
+    {
+        return m_snapshot_deadline;
+    }
+
+private:
+    std::chrono::nanoseconds m_snapshot_deadline = std::chrono::nanoseconds(0);
 };
 
 } // namespace realtime

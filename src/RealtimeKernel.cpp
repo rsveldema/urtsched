@@ -28,9 +28,12 @@ void RealtimeKernel::set_sched_affinity(uint32_t core)
     CPU_SET(core, &cpuset); // set CPU 2 on cpuset
 
     /* bind process to processor 0 */
-    if (int status = pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset); status < 0)
+    if (int status =
+            pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+        status < 0)
     {
-        LOG_ERROR(get_logger(), "failed to set thread affinity: %s", strerror(-status));
+        LOG_ERROR(get_logger(), "failed to set thread affinity: %s",
+            strerror(-status));
     }
 }
 
@@ -39,8 +42,8 @@ void RealtimeKernel::set_sched_affinity(uint32_t core)
     TaskType tt, const std::string& name,
     const std::chrono::microseconds& interval, const task_func_t& callback)
 {
-    auto s = std::make_shared<PeriodicTask>(m_timer,
-        tt, "periodic: " + name, interval, callback, m_logger, this);
+    auto s = std::make_shared<PeriodicTask>(
+        m_timer, tt, "periodic: " + name, interval, callback, m_logger, this);
     for (size_t i = 0; i < m_periodic_list.size(); i++)
     {
         if (m_periodic_list[i] == nullptr)
@@ -72,8 +75,8 @@ bool RealtimeKernel::remove(const std::shared_ptr<PeriodicTask>& task_ptr)
 std::shared_ptr<IdleTask> RealtimeKernel::add_idle_task(
     const std::string& name, const task_func_t& callback)
 {
-    auto s = std::make_shared<IdleTask>(m_timer,
-        "idle: " + name, 0us, callback, m_logger, this);
+    auto s = std::make_shared<IdleTask>(
+        m_timer, "idle: " + name, 0us, callback, m_logger, this);
 
     for (size_t i = 0; i < m_idle_list.size(); i++)
     {
@@ -195,38 +198,39 @@ std::vector<std::shared_ptr<PeriodicTask>> RealtimeKernel::get_next_periodics()
 }
 
 
-std::vector<PeriodicTask*>
-RealtimeKernel::get_sorted_realtime_tasks(
+std::vector<PeriodicTask*> RealtimeKernel::get_sorted_realtime_tasks(
     const std::vector<std::shared_ptr<PeriodicTask>>& next_up)
 {
+    // keep a copy of the pointers to avoid copying shared_ptrs around during
+    // the sorting.
     std::vector<PeriodicTask*> ret;
     for (const auto& it : next_up)
     {
         if (it->get_task_type() == TaskType::HARD_REALTIME)
         {
-            assert(std::find(ret.begin(), ret.end(), it.get()) == ret.end());
+            // we snapshot their deadlines here for sorting later:
+            // otherwise the time_left_until_deadline() will change as we
+            // perform the sorting and cause the sort to be incorrect.
+            it->snapshot_deadline();
             ret.push_back(it.get());
         }
     }
 
-    struct
-    {
-        bool operator()(const PeriodicTask* t1,
-           const PeriodicTask* t2) const {
-            if (t1 == t2) {
+    std::sort(ret.begin(), ret.end(),
+        [](const PeriodicTask* t1, const PeriodicTask* t2) {
+            if (t1 == t2)
+            {
                 return false;
             }
-            const auto d1 = t1->time_left_until_deadline();
-            const auto d2 = t2->time_left_until_deadline();
+
+            const auto d1 = t1->get_snapshot_deadline();
+            const auto d2 = t2->get_snapshot_deadline();
             if (d1 == d2)
             {
                 return false;
             }
             return d1 < d2;
-        }
-    }  customLess;
-
-    std::sort(ret.begin(), ret.end(),customLess);
+        });
     return ret;
 }
 
@@ -317,7 +321,8 @@ void RealtimeKernel::step()
 
 void RealtimeKernel::run(std::optional<const std::chrono::milliseconds> runtime)
 {
-    time_utils::Timeout t{m_timer, runtime.value_or(std::chrono::milliseconds(0))};
+    time_utils::Timeout t{ m_timer,
+        runtime.value_or(std::chrono::milliseconds(0)) };
     while (!should_exit())
     {
         step();
