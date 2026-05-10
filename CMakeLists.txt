@@ -21,6 +21,7 @@ file(GLOB_RECURSE INCLUDE_FILES "include/*.hpp")
 add_library(urtsched)
 
 target_compile_features(urtsched PUBLIC cxx_std_23)
+target_compile_options(urtsched PUBLIC -Wframe-larger-than=8192)
 target_link_libraries(urtsched slogger)
 target_include_directories(urtsched PUBLIC ${PUBLIC_INCLUDE_DIRECTORIES})
 target_include_directories(urtsched PRIVATE ${PRIVATE_INCLUDE_DIRECTORIES})

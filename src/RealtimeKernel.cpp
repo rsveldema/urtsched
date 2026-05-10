@@ -319,8 +319,39 @@ void RealtimeKernel::step()
     }
 }
 
+
+namespace
+{
+// Intentionally large stack allocation — suppress the frame-size warning for
+// this helper only. It is marked noinline so the large frame stays isolated
+// and does not propagate into callers (e.g. the thread lambda in
+// MultiCoreRealtimeKernel).
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wframe-larger-than"
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wframe-larger-than="
+#endif
+    __attribute__((noinline)) void prefault_stack()
+    {
+        constexpr size_t STACK_PREFAULT = 256 * 1024;
+        volatile char stack_touch[STACK_PREFAULT];
+        memset(const_cast<char*>(stack_touch), 0, sizeof(stack_touch));
+    }
+#ifdef __clang__
+#pragma clang diagnostic pop
+#else
+#pragma GCC diagnostic pop
+#endif
+} // namespace
+
 void RealtimeKernel::run(std::optional<const std::chrono::milliseconds> runtime)
 {
+    // Pre-fault this thread's stack so the kernel never takes a stack-growth
+    // page fault inside a RT task callback.
+    prefault_stack();
+
     time_utils::Timeout t{ m_timer,
         runtime.value_or(std::chrono::milliseconds(0)) };
     while (!should_exit())

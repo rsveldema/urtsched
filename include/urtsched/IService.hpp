@@ -9,6 +9,8 @@ namespace service
     class IService
     {
     public:
+        virtual ~IService() = default;
+
         virtual std::string get_service_status_as_json() const { return ""; }
 
         [[nodiscard]]

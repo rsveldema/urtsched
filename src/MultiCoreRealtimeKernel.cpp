@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
+#include <sys/mman.h>
 #include <thread>
 #include <unistd.h>
 
@@ -87,6 +89,15 @@ void MultiCoreRealtimeKernel::reserve_cores_using_cgroups()
 
 void MultiCoreRealtimeKernel::run(const std::chrono::milliseconds& max_runtime)
 {
+    // Lock all current and future pages in RAM to eliminate page faults
+    // in RT task callbacks.
+    if (mlockall(MCL_CURRENT | MCL_FUTURE) != 0)
+    {
+        LOG_ERROR(get_logger(),
+            "mlockall failed: {} (run as root or grant CAP_IPC_LOCK)",
+            strerror(errno));
+    }
+
     switch (m_reserve_cores)
     {
     case CoreReservationMechanism::CGROUPS:
